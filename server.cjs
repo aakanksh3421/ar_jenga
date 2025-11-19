@@ -1,61 +1,92 @@
+// server.cjs - full replacement (CommonJS)
+// --- aakanksh addition: CORS + debug-enabled Socket.IO server ---
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
 
-// Add your deployed frontend URL (EXACT, no trailing slash!)
+// --- aakanksh addition: allowed origins (add any other exact origins you need) ---
 const allowedOrigins = [
-  'https://ar-jenga-five.vercel.app',      // your Vercel frontend
-  'https://ar-jenga-five.vercel.app/',     // sometimes with trailing slash
-  'https://your-custom-domain.com',        // if you have a custom domain
-  'http://localhost:3000'                     // Local dev, optional
+  "https://ar-jenga-frontend-2up5.vercel.app",
+  "https://ar-jenga-five.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000"
 ];
+// --- end aakanksh addition ---
 
-// Enable CORS for HTTP requests from frontend
-app.use(cors({
-  origin: allowedOrigins,
-  methods: ["GET", "POST"],
-}));
+// --- aakanksh addition: lightweight request logger to help debug CORS issues ---
+app.use((req, res, next) => {
+  const origin = req.headers.origin || 'none';
+  console.log(`[req] ${req.method} ${req.url} - Origin: ${origin}`);
+  next();
+});
+// --- end aakanksh addition ---
 
-// Serve static files from project root
+// --- aakanksh addition: add CORS headers for HTTP requests (handles polling XHR) ---
+app.use(function (req, res, next) {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.indexOf(origin) !== -1) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // For debugging you can allow all temporarily:
+    // res.header('Access-Control-Allow-Origin', '*');
+  }
+  res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+// --- end aakanksh addition ---
+
+// Serve static files from project root (unchanged)
 app.use(express.static(__dirname));
 
-// Serve index.html at root
+// Serve index.html at root (unchanged)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Setup Socket.IO server with CORS allowed from frontend URLs
+// --- aakanksh addition: initialize Socket.IO with explicit CORS config ---
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (e.g., server-to-server) or from our allowed list
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.warn('[io] blocked socket origin:', origin);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ["GET", "POST"],
-    credentials: true,
+    credentials: true
   },
+  transports: ['websocket', 'polling'] // allow polling fallback but prefer websocket
 });
+// --- end aakanksh addition ---
 
 let rooms = new Map(); // Store rooms
 
-// Room class to manage players and game state in a room
+// Room class (unchanged)
 class Room {
   constructor(roomId) {
     this.roomId = roomId;
     this.players = [];
-    this.gameState = {}; // Each room maintains its own game state
+    this.gameState = {};
   }
-
   addPlayer(socket, playerData) {
     this.players.push({ socket, playerData });
   }
-
   isFull() {
-    return this.players.length >= 2; // Max 3 players per room
+    return this.players.length >= 2;
   }
-
   getState() {
     return {
       roomId: this.roomId,
@@ -63,31 +94,28 @@ class Room {
       gameState: this.gameState,
     };
   }
-
   updateGameState(blockData) {
-    this.gameState[blockData.id] = blockData; // Update the room's game state
+    this.gameState[blockData.id] = blockData;
   }
 }
 
-// Handle WebSocket connections
+// Socket.IO connection events (mostly unchanged, small io.emit -> io.to fixes)
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+  console.log('A user connected:', socket.id, 'Origin:', socket.handshake.headers.origin);
 
   // Create Room
-    // Handle creating a new room
-    socket.on('createRoom', (playerData) => {
-      const roomId = Math.random().toString(36).substring(7); // Generate a random room ID
-      const room = new Room(roomId);
-      room.addPlayer(socket, playerData);
-      rooms.set(roomId, room);
-  
-      console.log('Created room:', roomId);
-      console.log('Active rooms:', Array.from(rooms.keys()));
-  
-      socket.join(roomId);
-      console.log(room);
-      socket.emit('roomCreated', roomId); // Send room ID back to the client
-    });
+  socket.on('createRoom', (playerData) => {
+    const roomId = Math.random().toString(36).substring(7);
+    const room = new Room(roomId);
+    room.addPlayer(socket, playerData);
+    rooms.set(roomId, room);
+
+    console.log('Created room:', roomId);
+    console.log('Active rooms:', Array.from(rooms.keys()));
+
+    socket.join(roomId);
+    socket.emit('roomCreated', roomId);
+  });
 
   // Join Room
   socket.on('joinRoom', ({ roomId, playerData }) => {
@@ -108,38 +136,32 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     socket.emit('joinedRoom', { roomId, state: room.getState() });
 
-    // Notify other players in the room
+    // Notify other players
     socket.to(roomId).emit('playerJoined', { playerId: socket.id, playerData });
   });
 
   // Set Base Position
   socket.on('set-base-position', ({ roomId, position }) => {
     const room = rooms.get(roomId);
-
     if (!room) {
       socket.emit('roomError', 'Room not found');
       return;
     }
-
     const player = room.players.find((p) => p.playerData.name === socket.id);
-    console.log("In set-base");
-    console.log(position);
+    console.log("In set-base", position);
     if (player) {
       player.playerData.basePosition = position;
-      console.log(`Player ${socket.id} base position set to, position`);
+      console.log(`Player ${socket.id} base position set`);
     }
   });
 
   // Player Ready
   socket.on('player-ready', ({ roomId }) => {
     const room = rooms.get(roomId);
-  
     if (!room) {
       socket.emit('roomError', 'Room not found');
       return;
     }
-  
-    // Find the player by matching their name with socket.id
     const player = room.players.find((p) => p.playerData.name === socket.id);
     if (player) {
       player.playerData.ready = true;
@@ -147,43 +169,33 @@ io.on('connection', (socket) => {
     } else {
       console.warn(`Player not found in room ${roomId} for socket ${socket.id}`);
     }
-  
-    // Check if all players in the room are ready
     const allReady = room.players.every((p) => p.playerData.ready);
     if (allReady) {
       io.to(roomId).emit('start-game', room.getState().gameState);
       console.log(`All players are ready in room ${roomId}. Starting the game.`);
-  
-      // Assign the first turn to the first player
-      const firstPlayerId = room.players[0].playerData.name; // Use playerData.name for turn tracking
-      io.emit('turn-update', { currentTurn: firstPlayerId, roomId });
+      const firstPlayerId = room.players[0].playerData.name;
+      io.to(roomId).emit('turn-update', { currentTurn: firstPlayerId, roomId });
       console.log(`First turn assigned to player: ${firstPlayerId} in room ${roomId}`);
     }
   });
-  
-  // Update for block movement and turn rotation
+
+  // Update block and rotate turn
   socket.on('update-block', ({ roomId, blockData }) => {
     const room = rooms.get(roomId);
-  
     if (!room) {
       console.warn(`Room not found for roomId ${roomId}`);
       return;
     }
-  
     const player = room.players.find((p) => p.playerData.name === socket.id);
     if (!player) {
       console.warn(`Player with socket id ${socket.id} not found in room ${roomId}`);
       return;
     }
-  
     const playerBasePosition = player.playerData.basePosition;
-  
     if (!playerBasePosition) {
       console.warn(`Player ${socket.id} has no base position set.`);
       return;
     }
-  
-    // Calculate the relative movement
     const relativeChange = {
       id: blockData.id,
       relativePosition: {
@@ -193,57 +205,42 @@ io.on('connection', (socket) => {
       },
       quaternion: blockData.quaternion,
     };
-  
-    // Broadcast the relative change to all other clients in the same room
-    io.emit('update-block', { roomId, blockData: relativeChange });
-  
-    // Rotate turn to the next player
+    io.to(roomId).emit('update-block', { roomId, blockData: relativeChange });
     const currentPlayerIndex = room.players.findIndex((p) => p.playerData.name === socket.id);
     if (currentPlayerIndex !== -1) {
       const nextPlayerIndex = (currentPlayerIndex + 1) % room.players.length;
       const nextPlayerId = room.players[nextPlayerIndex].playerData.name;
-      io.emit('turn-update', { currentTurn: nextPlayerId, roomId });
+      io.to(roomId).emit('turn-update', { currentTurn: nextPlayerId, roomId });
       console.log(`Turn updated: Current turn for player ${nextPlayerId} in room ${roomId}`);
     }
   });
-  
-  
-  
 
-  // Tower Collapsed
+  // Tower collapsed
   socket.on('tower-collapsed', ({ roomId, playerId }) => {
     const room = rooms.get(roomId);
     if (!room) {
       socket.emit('roomError', 'Room not found');
       return;
     }
-  
-    console.log(`Player ${playerId} caused the tower to collapse in room ${roomId}`);
-  
-    // Notify the player who caused the collapse that they lost
+    console.log(`Player ${playerId} caused tower collapse in room ${roomId}`);
     io.to(playerId).emit('game-result', {
       message: 'You lost! You caused the tower to collapse.',
       roomId,
-      playerId, // Include the playerId who lost
+      playerId,
     });
-  
-    // Notify all other players in the room that they won
     room.players.forEach((p) => {
       if (p.socket.id !== playerId) {
-        io.emit('game-result', {
+        io.to(p.socket.id).emit('game-result', {
           message: 'You won! The other player caused the tower to collapse.',
           roomId,
         });
       }
     });
   });
-  
 
-  // Player Disconnection
+  // Player disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-
-    // Find the room and remove the player
     let roomId;
     for (const [id, room] of rooms.entries()) {
       const index = room.players.findIndex((p) => p.socket.id === socket.id);
@@ -253,16 +250,12 @@ io.on('connection', (socket) => {
         break;
       }
     }
-
     if (roomId) {
       console.log(`Player ${socket.id} left room ${roomId}`);
-
-      // If the room is empty, delete it
       if (rooms.get(roomId).players.length === 0) {
         rooms.delete(roomId);
         console.log(`Room ${roomId} has been deleted`);
       } else {
-        // Notify remaining players in the room
         socket.to(roomId).emit('playerDisconnected', socket.id);
       }
     }
@@ -270,7 +263,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
