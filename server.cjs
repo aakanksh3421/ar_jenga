@@ -1,16 +1,40 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: ['https://ar-jenga-five.vercel.app',      // your Vercel frontend
+
+// Add your deployed frontend URL (EXACT, no trailing slash!)
+const allowedOrigins = [
+  'https://ar-jenga-five.vercel.app',      // your Vercel frontend
   'https://ar-jenga-five.vercel.app/',     // sometimes with trailing slash
   'https://your-custom-domain.com',        // if you have a custom domain
-  'http://localhost:3000'], // Allow Vite app
+  'http://localhost:3000'                     // Local dev, optional
+];
+
+// Enable CORS for HTTP requests from frontend
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST"],
+}));
+
+// Serve static files from project root
+app.use(express.static(__dirname));
+
+// Serve index.html at root
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Setup Socket.IO server with CORS allowed from frontend URLs
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
