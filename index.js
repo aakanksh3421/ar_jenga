@@ -115,7 +115,7 @@ let physicsEnabled = false; //for toggling physics
 const blockMaterial = new CANNON.Material({ friction: 10.0, restitution: 0.0 }); //adding high friction so model remains stable
 
 // Connect to the WebSocket server
-const socket = io("https://ar-jenga-final.onrender.com");   //change after deploying on render first 
+const socket = io("https://ar-jenga-1.onrender.com");   //change after deploying on render first 
 
 //called when player clicks on the ready button 
 function notifyReady() {
