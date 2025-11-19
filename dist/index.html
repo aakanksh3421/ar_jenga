@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jenga AR/VR Game</title>
+	<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <style>
+        body {
+            background-color: black;
+            color: white; /* Set text color to white */
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+
+        #main-menu {
+            text-align: center;
+            padding: 20px;
+        }
+
+        #title-container {
+            margin-top: 10px; /* Push the image up */
+        }
+
+        #title-image {
+            max-width: 100%;
+            height: auto;
+        }
+
+        #text-box-container {
+            margin: 20px auto;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        #controls-container {
+            text-align: left;
+            margin: 20px auto;
+            padding: 10px;
+            width: 80%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #222;
+        }
+
+        #controls-container ul {
+            padding-left: 20px;
+        }
+
+        #controls-container li {
+            margin-bottom: 8px;
+        }
+
+        #exit-button-container {
+            margin-bottom: 20px;
+        }
+
+        #button-container {
+            margin-top: 15px;
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/index-BCNGx4sR.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-D-5NDg4y.css">
+</head>
+<body>
+  <div id="main-menu">
+    <div id="exit-button-container">
+      <button id="exit-button">Exit</button>
+    </div>
+    <div id="title-container">
+        <img id="title-image" src="/assets/title-D0F0VVJq.png" alt="Jenga Title">
+    </div>
+    <div id="button-container">
+        <button id="start-game">Allow AR</button>
+    </div>
+
+    <!-- Instructions Section -->
+    <div id="text-box-container">
+        <p>Ensure you click ready only after your model has loaded. (Better if both have loaded the model)</p>
+        <p>When it's not your turn, you will not be able to move your blocks.</p>
+        <p>Once you choose a block, you are forced to move it!</p>
+    </div>
+
+    <!-- Controls Section -->
+    <div id="controls-container">
+        <h3>Controls:</h3>
+        <ul>
+            <li>Click on a block to select it.</li>
+            <li>Use <strong>'W', 'A', 'S', 'D'</strong> keys to move the block.</li>
+            <li>Press <strong>'R'</strong> to release the block.</li>
+            <li>You can also move the block using mouse or touch gestures.</li>
+            <li>Release the mouse or touch to drop the block.</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Audio element for sound effect -->
+
+<div id="game-container" style="display:none;"></div>
+<div id="exit-container" style="display: none;">
+    <h1>The application has ended.</h1>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,123 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%; /* Ensure body fills the viewport */
+}
+
+#main-menu {
+  width: 100vw; /* Full width */
+  height: 100vh; /* Full height */
+  background-image: url('images/background.jpeg'); /* Change this to your desired image */
+  background-size: cover; /* Ensures the image covers the menu */
+  background-position: center; /* Centers the background image */
+  display: flex; /* Centers the buttons */
+  flex-direction: column; /* Stack buttons vertically */
+  justify-content: center; /* Center buttons vertically */
+  align-items: center; /* Center buttons horizontally */
+  position: relative; /* Allows for positioning */
+  z-index: 1; /* Ensure it appears above the game container */
+}
+
+/* Button Container */
+#button-container {
+  display: flex;
+  flex-direction: row;  /* Arrange buttons side by side */
+  justify-content: center;
+  align-items: center;
+  gap: 20px;  /* Space between the buttons */
+  margin-top: 20px;  /* Space between the title and buttons */
+}
+
+/* Button Styling */
+button {
+  width: 200px;  /* Adjust button width */
+  height: 70px;  /* Adjust button height */
+  font-size: 20px;
+  background-color: orange;  /* Orange background */
+  color: black;  /* Black text */
+  border: 2px solid #333;
+  border-radius: 8px;
+  box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.3s;
+}
+
+button:hover {
+  background-color: darkorange;
+  transform: scale(1.05);
+}
+
+button.hidden {
+  visibility: hidden; /* Start hidden */
+  opacity: 0;         /* Fully transparent */
+  transition: opacity 1s ease-in-out; /* Fade-in transition */
+  
+}
+
+/* Title image starts hidden and fades in */
+#title-image {
+  max-width: 400px;    /* Adjust the size of the title image */
+  opacity: 1;          /* Initially hidden *  /* Initially not visible */
+  transition: opacity 1s ease-in-out; /* Fade-in effect */
+  z-index: 2;          /* Ensure it appears on top if necessary */
+  position: relative;
+}
+
+/* Title Container */
+#title-container {
+  margin-bottom: 20px;    /* Space between title and buttons */
+}
+
+#exit-button-container {
+  position: absolute; /* Position relative to the viewport */
+  top: 10px; /* Position from the top */
+  right: 10px; /* Position from the right */
+  z-index: 10; /* Ensure it's above other elements */
+}
+
+#exit-button {
+  padding: 10px 20px;
+  background-color: red;
+  color: black;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+  border: 2px solid #333;
+  border-radius: 8px;
+  box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#exit-button:hover {
+  background-color: darkred;
+}
+
+#game-container {
+  width: 100vw; /* Full width */
+  height: 100vh; /* Full height */
+  background-color: #87CEEB; /* Default color for testing */
+  position: relative; /* Allows for positioning child elements */
+  z-index: 1; /* Ensure it appears below the main menu */
+}
+
+/* Keyframes for the fade-in animation 
+@keyframes fadeIn {
+  to {
+      opacity: 1;  End with full opacity */
+
+      #exit-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: #000; /* Black background */
+        color: #fff; /* White text */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 2rem;
+        z-index: 9999; /* Make sure it appears above everything */
+    }
+    
+
+  

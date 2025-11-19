@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Jenga AR/VR Game</title>
+	<link rel="stylesheet" href="style.css"> 
+	<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+	<style>
+		#tower-height-container button {
+			padding: 5px 10px;
+			/* Smaller padding for reduced size */
+			border-radius: 4px;
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			cursor: pointer;
+			font-size: 12px;
+			/* Reduced font size */
+			height: auto;
+			/* Adjust height automatically */
+			width: auto;
+			/* Adjust width automatically */
+		}
+
+		body {
+			background-color: black;
+			color: white;
+			font-family: Arial, sans-serif;
+			margin: 0;
+		}
+
+		#main-menu {
+			text-align: center;
+			padding: 20px;
+		}
+
+		#title-container {
+			margin-top: 10px;
+		}
+
+		#title-image {
+			max-width: 100%;
+			height: auto;
+		}
+
+		#text-box-container {
+			margin: 20px auto;
+			text-align: center;
+			font-size: 16px;
+		}
+
+		#controls-container {
+			text-align: left;
+			margin: 20px auto;
+			padding: 10px;
+			width: 80%;
+			border: 1px solid #ccc;
+			border-radius: 8px;
+			background-color: #222;
+		}
+
+		#controls-container ul {
+			padding-left: 20px;
+		}
+
+		#controls-container li {
+			margin-bottom: 8px;
+		}
+
+		#exit-button-container {
+			margin-bottom: 20px;
+		}
+
+		#button-container {
+			margin-top: 15px;
+		}
+
+		#multiplayer-container {
+			margin-top: 20px;
+			text-align: center;
+		}
+
+		#multiplayer-container input {
+			margin: 10px 0;
+			padding: 8px;
+			border-radius: 5px;
+			border: 1px solid #ccc;
+			width: 70%;
+			font-size: 14px;
+		}
+
+		#multiplayer-container button {
+			margin: 5px;
+			padding: 10px 15px;
+			border-radius: 5px;
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			cursor: pointer;
+			font-size: 14px;
+		}
+
+		#room-status {
+			margin-top: 10px;
+			font-size: 14px;
+			color: yellow;
+		}
+
+		button:disabled {
+			opacity: 0.7;
+			cursor: not-allowed;
+		}
+
+		#tower-height-container {
+			margin: 20px auto;
+			text-align: center;
+		}
+
+		#tower-height-container input {
+			width: 50px;
+			padding: 5px;
+			border-radius: 5px;
+			border: 1px solid #ccc;
+			text-align: center;
+		}
+
+		#tower-height-container button {
+			margin-left: 10px;
+			padding: 10px 15px;
+			border-radius: 5px;
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			cursor: pointer;
+			font-size: 14px;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="main-menu">
+		<div id="exit-button-container">
+			<button id="exit-button">Exit</button>
+		</div>
+		<div id="title-container">
+			<img id="title-image" src="./images/title.png" alt="Jenga Title">
+		</div>
+		<div id="button-container">
+			<button id="start-game">Start AR</button>
+		</div>
+
+		<!-- Tower Height Section -->
+		<div id="tower-height-container">
+			<label for="tower-height">Tower Height:</label>
+			<input type="number" id="tower-height" min="5" max="15" value="10">
+			<button id="set-tower-height-button">Set</button>
+		</div>
+		
+
+		<!-- Multiplayer Section -->
+		<div id="multiplayer-container">
+			<input type="text" id="room-id" placeholder="Enter Room ID">
+			<div>
+				<button id="create-room-button">Create Room</button>
+				<button id="join-room-button">Join Room</button>
+			</div>
+			<div id="room-status"></div>
+		</div>
+
+		<!-- Instructions Section -->
+		<div id="text-box-container">
+			<p>Click ready only after your friend has joined or else its a singlePlayer game!!
+			<p>
+			<p>Ensure you click ready only after your model has loaded. (And your friends model as well)</p>
+			<p>When it's not your turn, you will not be able to move your blocks.</p>
+			<p>Once you choose a block, you are forced to move it!(So click wisely!!)</p>
+		</div>
+
+		<!-- Controls Section -->
+		<div id="controls-container">
+			<h3>Controls:</h3>
+			<ul>
+				<li>Click on a block to select it.</li>
+				<li>Use <strong>'W', 'A', 'S', 'D'</strong> keys to move the block.</li>
+				<li>Press <strong>'R'</strong> to release the block.</li>
+				<li>You can also move the block using mouse or touch gestures.</li>
+				<li>Release the mouse or touch to drop the block.</li>
+			</ul>
+		</div>
+	</div>
+
+
+
+	<div id="game-container" style="display:none;"></div>
+	<div id="exit-container" style="display: none;">
+		<h1>The application has ended.</h1>
+	</div>
+
+	<script>
+		let roomId;
+		window.baseHeight=10;
+		document.getElementById('start-game').disabled = true;
+
+		const socket = io("https://ar-jenga-final.onrender.com");   //first deploy the project on render and take the link and add here
+
+		document.getElementById('create-room-button').addEventListener('click', () => {
+			if (!window.id) {
+				console.error('Socket ID is not set yet. Cannot create room.');
+				return;
+			}
+			document.getElementById('create-room-button').disabled = true;
+			document.getElementById('join-room-button').disabled = true;
+			document.getElementById('start-game').disabled = false;
+
+			const playerData = { name: `${window.id}` };
+			socket.emit('createRoom', playerData);  //Room id generation and joining 
+		});
+
+		//joining the created room
+		socket.on('roomCreated', (id) => {
+			roomId = id;
+			document.getElementById('room-status').innerText = `Room Created and joined! Room ID: ${id}`;
+			document.getElementById('room-id').value = id;
+
+			window.roomId = roomId; //storing it on the window
+		});
+
+		//to join a existing room
+		document.getElementById('join-room-button').addEventListener('click', () => {
+			const enteredRoomId = document.getElementById('room-id').value;
+			if (!enteredRoomId) {
+				document.getElementById('room-status').innerText = 'Please enter a Room ID to join.';
+				return;
+			}
+			roomId = enteredRoomId;
+			const playerData = { name: `${window.id}` };
+			socket.emit('joinRoom', { roomId, playerData });
+			document.getElementById('create-room-button').disabled = true;
+			document.getElementById('join-room-button').disabled = true;
+			document.getElementById('start-game').disabled = false;
+
+			window.roomId = roomId;
+		});
+		//valid room joining 
+		socket.on('joinedRoom', ({ roomId, state }) => {
+			document.getElementById('room-status').innerText = `Joined Room: ${roomId}`;
+		});
+
+		socket.on('roomError', (message) => {
+			document.getElementById('room-status').innerText = `Error: ${message}`;
+		});
+
+		// Tower Height Button Functionality
+		document.getElementById('set-tower-height-button').addEventListener('click', () => {
+			const towerHeight = document.getElementById('tower-height').value;
+			if (towerHeight < 5 || towerHeight > 15) {
+				alert('Please set a tower height between 5 and 15.');
+				return;
+			}
+			console.log(`Tower height set to ${towerHeight}`);
+			// Send tower height to the window 
+			window.baseHeight = towerHeight;
+		});
+	</script>
+	<script type="module" src="index.js"></script>  
+</body>
+
+</html>

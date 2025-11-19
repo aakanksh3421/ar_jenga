@@ -1,0 +1,34 @@
+{
+  "hash": "ce907e96",
+  "configHash": "6fe63bbb",
+  "lockfileHash": "20159226",
+  "browserHash": "c18d728f",
+  "optimized": {
+    "three/src/Three.js": {
+      "src": "../../node_modules/three/src/Three.js",
+      "file": "three_src_Three__js.js",
+      "fileHash": "2a2ee4b0",
+      "needsInterop": false
+    },
+    "three/examples/jsm/Addons.js": {
+      "src": "../../node_modules/three/examples/jsm/Addons.js",
+      "file": "three_examples_jsm_Addons__js.js",
+      "fileHash": "a46fa08f",
+      "needsInterop": false
+    },
+    "three/examples/jsm/webxr/ARButton.js": {
+      "src": "../../node_modules/three/examples/jsm/webxr/ARButton.js",
+      "file": "three_examples_jsm_webxr_ARButton__js.js",
+      "fileHash": "7a971a4d",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-LJCVX5V3": {
+      "file": "chunk-LJCVX5V3.js"
+    },
+    "chunk-PZ5AY32C": {
+      "file": "chunk-PZ5AY32C.js"
+    }
+  }
+}
