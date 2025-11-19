@@ -6,7 +6,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["https://arjengaupdated1.vercel.app/", "https://localhost:5173"], // Allow Vite app
+    origin: ['https://ar-jenga-five.vercel.app',      // your Vercel frontend
+  'https://ar-jenga-five.vercel.app/',     // sometimes with trailing slash
+  'https://your-custom-domain.com',        // if you have a custom domain
+  'http://localhost:3000'], // Allow Vite app
     methods: ["GET", "POST"],
   },
 });
