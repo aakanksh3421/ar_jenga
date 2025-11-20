@@ -170,8 +170,10 @@ io.on('connection', (socket) => {
     if (allReady) {
       // io.to(roomId).emit('start-game', room.getState().gameState);
       // console.log(`All players ready in room ${roomId}. Starting game.`);
+        const payload = room.getState();
       io.to(roomId).emit('start-game', payload);
   console.log(`All players are ready in room ${roomId}. Starting the game with payload:`, payload);
+
       const firstPlayerId = room.players[0].playerData.name;
       io.to(roomId).emit('turn-update', { currentTurn: firstPlayerId, roomId });
       console.log(`First turn: ${firstPlayerId} in room ${roomId}`);
