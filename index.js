@@ -120,17 +120,55 @@ const socket = io("https://ar-jenga-1.onrender.com", {
   transports: ["polling"],
   withCredentials: true
 });
+
+// after: const socket = io("https://ar-jenga-1.onrender.com", { transports: ["polling"], withCredentials: true });
+window.socket = socket; // expose single global socket
+
+// --- guard / queue for room join + base sending ---
+let joined = false;
+let currentRoomId = null;
+let pendingBase = null;
+
+// Creator will get 'roomCreated' (server emits it when creator created & joined)
+socket.on('roomCreated', (rid) => {
+  console.log('roomCreated ->', rid);
+  joined = true;
+  currentRoomId = rid;
+  window.roomId = rid; // keep old code compatible
+  // flush any pending base
+  if (pendingBase) {
+    socket.emit('set-base-position', { roomId: currentRoomId, position: pendingBase });
+    basePosition = pendingBase;
+    pendingBase = null;
+  }
+});
+
+// Joiner will receive 'joinedRoom' from server
+socket.on('joinedRoom', (payload) => {
+  console.log('joinedRoom ->', payload);
+  joined = true;
+  currentRoomId = payload.roomId;
+  window.roomId = payload.roomId; // keep compatibility if other code reads window.roomId
+  if (pendingBase) {
+    socket.emit('set-base-position', { roomId: currentRoomId, position: pendingBase });
+    basePosition = pendingBase;
+    pendingBase = null;
+  }
+});
+
  //change after deploying on render first 
 
 //called when player clicks on the ready button 
 function notifyReady() {
-    if (!roomId) {
+    const rid = currentRoomId || roomId || window.roomId;
+    if (!rid) {
         console.error('Room ID is not set. Cannot notify readiness.');
         return;
     }
-    console.log(roomId);
-    socket.emit('player-ready', { roomId });
+    console.log('Notifying ready for room:', rid);
+    socket.emit('player-ready', { roomId: rid });
 }
+
 
 // Handle connection
 let id = null;
