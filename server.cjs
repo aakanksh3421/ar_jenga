@@ -1,5 +1,5 @@
-// server.cjs - full replacement (CommonJS)
-// --- aakanksh addition: CORS + debug-enabled Socket.IO server ---
+// server.cjs - full drop-in replacement
+// aakanksh addition: combined CORS + player id fixes + debug logs
 
 const express = require('express');
 const http = require('http');
@@ -9,30 +9,30 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// --- aakanksh addition: allowed origins (add any other exact origins you need) ---
+// --- aakanksh addition: allowed origins (add any exact origins you need) ---
 const allowedOrigins = [
-  "https://ar-jenga-frontend-2up5.vercel.app",
+  "https://ar-jenga-1.onrender.com",
   "https://ar-jenga-five.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000"
 ];
 // --- end aakanksh addition ---
 
-// --- aakanksh addition: lightweight request logger to help debug CORS issues ---
+// --- aakanksh addition: basic request logger for debugging origins ---
 app.use((req, res, next) => {
   const origin = req.headers.origin || 'none';
-  console.log(`[req] ${req.method} ${req.url} - Origin: ${origin}`);
+  console.log(`[HTTP] ${req.method} ${req.url} - Origin: ${origin}`);
   next();
 });
 // --- end aakanksh addition ---
 
-// --- aakanksh addition: add CORS headers for HTTP requests (handles polling XHR) ---
+// --- aakanksh addition: middleware to add CORS headers for HTTP requests (handles polling XHR) ---
 app.use(function (req, res, next) {
   const origin = req.headers.origin;
   if (origin && allowedOrigins.indexOf(origin) !== -1) {
     res.header('Access-Control-Allow-Origin', origin);
   } else {
-    // For debugging you can allow all temporarily:
+    // for quick testing you can uncomment the next line to allow all origins
     // res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
@@ -45,10 +45,8 @@ app.use(function (req, res, next) {
 });
 // --- end aakanksh addition ---
 
-// Serve static files from project root (unchanged)
+// Serve static files and index (unchanged)
 app.use(express.static(__dirname));
-
-// Serve index.html at root (unchanged)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -57,7 +55,7 @@ app.get('/', (req, res) => {
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
-      // Allow requests with no origin (e.g., server-to-server) or from our allowed list
+      // allow requests with no origin (server-to-server) or matching allowedOrigins
       if (!origin || allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
@@ -68,24 +66,26 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling'] // allow polling fallback but prefer websocket
+  transports: ['websocket', 'polling']
 });
 // --- end aakanksh addition ---
 
-let rooms = new Map(); // Store rooms
+// --- Room storage & class (unchanged with a small aakanksh addition in addPlayer) ---
+let rooms = new Map();
 
-// Room class (unchanged)
 class Room {
   constructor(roomId) {
     this.roomId = roomId;
     this.players = [];
     this.gameState = {};
   }
-  addPlayer(socket, playerData) {
+  addPlayer(socket, playerData = {}) {
+    // aakanksh addition: ensure server-authoritative name/id
+    playerData = Object.assign({}, playerData, { name: socket.id, ready: !!playerData.ready });
     this.players.push({ socket, playerData });
   }
   isFull() {
-    return this.players.length >= 2;
+    return this.players.length >= 2; // keep your 2-player limit
   }
   getState() {
     return {
@@ -98,60 +98,57 @@ class Room {
     this.gameState[blockData.id] = blockData;
   }
 }
+// --- end Room ---
 
-// Socket.IO connection events (mostly unchanged, small io.emit -> io.to fixes)
+// --- Socket handlers (create/join/set-base/update-block with server-authoritative lookups) ---
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id, 'Origin:', socket.handshake.headers.origin);
+  console.log('[io] connected:', socket.id, 'handshake origin:', socket.handshake.headers.origin || 'none');
 
   // Create Room
-  socket.on('createRoom', (playerData) => {
+  socket.on('createRoom', (playerData = {}) => {
     const roomId = Math.random().toString(36).substring(7);
     const room = new Room(roomId);
+    // aakanksh: add creator with server-side name=socket.id
     room.addPlayer(socket, playerData);
     rooms.set(roomId, room);
 
-    console.log('Created room:', roomId);
-    console.log('Active rooms:', Array.from(rooms.keys()));
-
+    console.log('Created room:', roomId, 'by', socket.id);
     socket.join(roomId);
     socket.emit('roomCreated', roomId);
   });
 
   // Join Room
-  socket.on('joinRoom', ({ roomId, playerData }) => {
+  socket.on('joinRoom', ({ roomId, playerData = {} }) => {
     const room = rooms.get(roomId);
-
     if (!room) {
       socket.emit('roomError', 'Room not found');
       return;
     }
-
     if (room.isFull()) {
       socket.emit('roomError', 'Room is full');
       return;
     }
-
-    console.log('Joining room:', roomId);
+    console.log(`Socket ${socket.id} joining room: ${roomId}`);
     room.addPlayer(socket, playerData);
     socket.join(roomId);
     socket.emit('joinedRoom', { roomId, state: room.getState() });
-
-    // Notify other players
-    socket.to(roomId).emit('playerJoined', { playerId: socket.id, playerData });
+    socket.to(roomId).emit('playerJoined', { playerId: socket.id, playerData: Object.assign({}, playerData, { name: socket.id }) });
   });
 
-  // Set Base Position
+  // Set Base Position - aakanksh addition: find player by socket id
   socket.on('set-base-position', ({ roomId, position }) => {
     const room = rooms.get(roomId);
     if (!room) {
       socket.emit('roomError', 'Room not found');
       return;
     }
-    const player = room.players.find((p) => p.playerData.name === socket.id);
-    console.log("In set-base", position);
+    const player = room.players.find((p) => p.socket && p.socket.id === socket.id);
+    console.log("In set-base", position, "for", socket.id);
     if (player) {
       player.playerData.basePosition = position;
-      console.log(`Player ${socket.id} base position set`);
+      console.log(`Player ${socket.id} base position set to`, position);
+    } else {
+      console.warn(`set-base-position: player not found in room ${roomId} for socket ${socket.id}`);
     }
   });
 
@@ -162,7 +159,7 @@ io.on('connection', (socket) => {
       socket.emit('roomError', 'Room not found');
       return;
     }
-    const player = room.players.find((p) => p.playerData.name === socket.id);
+    const player = room.players.find((p) => p.socket && p.socket.id === socket.id);
     if (player) {
       player.playerData.ready = true;
       console.log(`Player ${socket.id} is ready in room ${roomId}`);
@@ -172,10 +169,10 @@ io.on('connection', (socket) => {
     const allReady = room.players.every((p) => p.playerData.ready);
     if (allReady) {
       io.to(roomId).emit('start-game', room.getState().gameState);
-      console.log(`All players are ready in room ${roomId}. Starting the game.`);
+      console.log(`All players ready in room ${roomId}. Starting game.`);
       const firstPlayerId = room.players[0].playerData.name;
       io.to(roomId).emit('turn-update', { currentTurn: firstPlayerId, roomId });
-      console.log(`First turn assigned to player: ${firstPlayerId} in room ${roomId}`);
+      console.log(`First turn: ${firstPlayerId} in room ${roomId}`);
     }
   });
 
@@ -186,7 +183,7 @@ io.on('connection', (socket) => {
       console.warn(`Room not found for roomId ${roomId}`);
       return;
     }
-    const player = room.players.find((p) => p.playerData.name === socket.id);
+    const player = room.players.find((p) => p.socket && p.socket.id === socket.id);
     if (!player) {
       console.warn(`Player with socket id ${socket.id} not found in room ${roomId}`);
       return;
@@ -196,6 +193,7 @@ io.on('connection', (socket) => {
       console.warn(`Player ${socket.id} has no base position set.`);
       return;
     }
+
     const relativeChange = {
       id: blockData.id,
       relativePosition: {
@@ -205,8 +203,12 @@ io.on('connection', (socket) => {
       },
       quaternion: blockData.quaternion,
     };
+
+    // broadcast to the room only
     io.to(roomId).emit('update-block', { roomId, blockData: relativeChange });
-    const currentPlayerIndex = room.players.findIndex((p) => p.playerData.name === socket.id);
+
+    // rotate turn
+    const currentPlayerIndex = room.players.findIndex((p) => p.socket && p.socket.id === socket.id);
     if (currentPlayerIndex !== -1) {
       const nextPlayerIndex = (currentPlayerIndex + 1) % room.players.length;
       const nextPlayerId = room.players[nextPlayerIndex].playerData.name;
@@ -238,7 +240,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Player disconnect
+  // Disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
     let roomId;
@@ -254,13 +256,14 @@ io.on('connection', (socket) => {
       console.log(`Player ${socket.id} left room ${roomId}`);
       if (rooms.get(roomId).players.length === 0) {
         rooms.delete(roomId);
-        console.log(`Room ${roomId} has been deleted`);
+        console.log(`Room ${roomId} deleted`);
       } else {
         socket.to(roomId).emit('playerDisconnected', socket.id);
       }
     }
   });
 });
+// --- end io handlers ---
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
